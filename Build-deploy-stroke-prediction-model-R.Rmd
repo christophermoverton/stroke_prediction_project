@@ -1,0 +1,1062 @@
+---
+title: "Build and deploy a stroke prediction model using R"
+date: "`r Sys.Date()`"
+output: html_document
+author: "Put your name!"
+---
+
+# About Data Analysis Report
+
+This RMarkdown file contains the report of the data analysis done for the project on building and deploying a stroke prediction model in R. It contains analysis such as data exploration, summary statistics and building the prediction models. The final report was completed on `r date()`.
+
+**Data Description:**
+
+According to the World Health Organization (WHO) stroke is the 2nd leading cause of death globally, responsible for approximately 11% of total deaths.
+
+This data set is used to predict whether a patient is likely to get stroke based on the input parameters like gender, age, various diseases, and smoking status. Each row in the data provides relevant information about the patient.
+
+# Task One: Import data and data preprocessing
+
+## Load data and install packages
+
+```{r}
+library(tidyverse)
+# library(forcats)
+# #install.packages("GGally")
+# library(GGally)
+# #install.packages("superml")
+# library(superml)
+# #install.packages("caret")
+# library(caret)
+# #install.packages("Boruta")
+# library(Boruta)
+# library(tidymodels)
+# #install.packages("baguette")
+# library(baguette)
+# #install.packages("discrim")
+# library(discrim)
+# #install.packages("bonsai")
+# library(bonsai)
+# library(xgboost)
+# library(glmnet)
+# library(dplyr)
+# #install.packages("xgboost")
+# #install.packages(c("Matrix", "foreach", "glmnet"))
+# 
+# #install.packages("glmnet")
+# library(naivebayes)
+# library(kknn)
+# library(kernlab)
+# library(lightgbm)
+# library(mda)
+# library(klaR)
+#install.packages("naivebayes")
+#install.packages("kknn")
+conflicts()
+
+```
+
+```{r}
+strokedf <- read_csv("healthcare-dataset-stroke-data.csv")
+```
+
+## Describe and explore the data
+
+```{r}
+strokedf %>% glimpse()
+```
+
+```{r}
+strokedf %>% head()
+```
+
+```{r}
+strokedf %>% summary()
+```
+
+```{r}
+# from character to factor
+strokedf <- strokedf %>% mutate_if(is.character, as.factor)
+```
+
+```{r}
+strokedf %>% summary()
+```
+
+Summary of Missing Values
+
+```{r}
+#assign "N/A" values in bmi column row to NA values so that is.na() function 
+#recognizes these as NA values.
+strokedf[strokedf[["bmi"]] == "N/A", "bmi"] <- NA
+# compute the number of NA rows in column 
+na.total.bmi <- sum(is.na(strokedf$bmi))
+#portion of na values in bmi column.  Remove column, drop rows, or impute value?
+#If portion is high (35%) of row values na, then we may drop the column altogether.
+# Otherwise, we may either impute values or drop rows.  Dropping rows imparts loss 
+# of data, imputing values could bias column.
+na.total.bmi/nrow(strokedf) 
+strokedf <- strokedf %>%
+  mutate(bmi = fct_explicit_na(bmi, "0"))
+sum(is.na(strokedf$bmi))
+#since "N/A" value meant column was read as character type
+#we converted character to factor type.  Replaced "N/A" with NA values
+# so that now the column can be represented as a numeric type
+strokedf$bmi <- as.numeric(as.character(strokedf$bmi))
+strokedf %>% summary()
+strokedf %>% 
+  select(everything()) %>%
+  summarise_all(funs(sum(is.na(.))))
+```
+
+Age Variable
+
+```{r}
+strokedf$age %>% summary()
+
+ggplot(data = strokedf, aes(x=age)) +
+  geom_histogram(color= "darkblue", fill="lightblue")+
+  labs(title = "Age Histogram Plot", x="Age", y="Count")+
+  theme_minimal()
+```
+
+Gender Variable
+
+```{r}
+ggplot(data = strokedf, aes(x=gender))+
+  stat_count(fill="steelblue")+
+  labs(title = "Gender Bar Plot", x="Gender", y="Count")+
+  theme_minimal()
+```
+
+Hypertension variable
+
+```{r}
+ggplot(data = strokedf, aes(x=hypertension))+
+  stat_count(fill="steelblue")+
+  labs(title = "Hypertension Bar Plot", x="Hypertension", y="Count")+
+  theme_minimal()
+```
+
+Heart Disease variable
+
+```{r}
+ggplot(data = strokedf, aes(x=heart_disease))+
+  stat_count(fill="steelblue")+
+  labs(title = "Heart Disease Bar Plot", x="Heart Disease", y="Count")+
+  theme_minimal()
+```
+
+Ever Married Variable
+
+```{r}
+ggplot(data = strokedf, aes(x=ever_married))+
+  stat_count(fill="steelblue")+
+  labs(title = "Ever Married Bar Plot", x="Ever Married", y="Count")+
+  theme_minimal()
+```
+
+Work Type Variable
+
+```{r}
+
+ggplot(data = strokedf, aes(x=work_type))+
+  stat_count(fill="steelblue")+
+  labs(title = "Work Type Bar Plot", x="Work Type", y="Count")+
+  theme_minimal()
+```
+
+Residence Type Variable
+
+```{r}
+ggplot(data = strokedf, aes(x=Residence_type))+
+  stat_count(fill="steelblue")+
+  labs(title = "Residence Type Bar Plot", x="Residence Type", y="Count")+
+  theme_minimal()
+```
+
+Average Glucose Level Variable
+
+```{r}
+ggplot(data = strokedf, aes(x=avg_glucose_level)) +
+  geom_histogram(color= "darkblue", fill="lightblue")+
+  labs(title = "Average Glucose Level Histogram Plot", x="Avg. Glucose Level", y="Count")+
+  theme_minimal()
+```
+
+BMI Variable
+
+```{r}
+ggplot(data = strokedf, aes(x=bmi)) +
+  geom_histogram(color= "darkblue", fill="lightblue")+
+  labs(title = "Body Mass Index Histogram Plot", x="Bmi", y="Count")+
+  theme_minimal()
+
+
+```
+
+Smoking Status Variable
+
+```{r}
+ggplot(data = strokedf, aes(x=smoking_status))+
+  stat_count(fill="steelblue")+
+  labs(title = "Smoking Status Bar Plot", x="Smoking Status", y="Count")+
+  theme_minimal()
+```
+
+Stroke Variable
+
+```{r}
+ggplot(data = strokedf, aes(x=stroke)) +
+  stat_count(fill="steelblue")+
+  labs(title = "Stroke Bar Plot", x="Stroke", y="Count")+
+  theme_minimal()
+```
+
+Boxplot of Numerical Variables
+
+```{r}
+ggplot(data = strokedf, aes(x = age)) +
+  geom_boxplot(color = "darkblue", fill = "lightblue") +
+  labs(title = "Age Box Plot", x = "Age") +
+  theme_minimal()
+
+ggplot(data = strokedf, aes(x = avg_glucose_level)) +
+  geom_boxplot(color = "darkblue", fill = "lightblue") +
+  labs(title = "Average Glucose Level Box Plot", x = "Avg. Glucose Level") +
+  theme_minimal()
+
+ggplot(data = strokedf, aes(x = bmi)) +
+  geom_boxplot(color = "darkblue", fill = "lightblue") +
+  labs(title = "Body Mass Index Box Plot", x = "BMI") +
+  theme_minimal()
+```
+
+Matrix Plot
+
+```{r}
+library(GGally)
+
+ggpairs(strokedf, title = "correlogram with ggpairs()")
+ggcorr(strokedf, title = "correlation matrix with ggcorr()")
+
+```
+
+Data Pre-Processing
+
+Outlier Analysis
+
+```{r}
+avg_glucose_out <- boxplot(strokedf$avg_glucose_level, plot = FALSE)
+strokedf$avg_glucose_level[strokedf$avg_glucose_level <= avg_glucose_out$stats[1]] <- avg_glucose_out$stats[1]
+strokedf$avg_glucose_level[strokedf$avg_glucose_level >= avg_glucose_out$stats[5]] <- avg_glucose_out$stats[5]
+
+bmi_out <- boxplot(strokedf$bmi, plot = FALSE)
+strokedf$bmi[strokedf$bmi <= bmi_out$stats[1]] <- bmi_out$stats[1]
+strokedf$bmi[strokedf$bmi >= bmi_out$stats[5]] <- bmi_out$stats[5]
+```
+
+Label Encoding
+
+```{r}
+library(superml)
+lbl = LabelEncoder$new()
+strokedf$gender <- lbl$fit_transform(strokedf$gender)
+strokedf$ever_married = lbl$fit_transform(strokedf$ever_married)
+strokedf$Residence_type = lbl$fit_transform(strokedf$Residence_type)
+```
+
+One Hot Encoding
+
+```{r}
+library(caret)
+dummy_data <- dummyVars(" ~ .", data = strokedf)
+strokedf <- as.data.frame(predict(dummy_data, strokedf))
+strokedf %>% summary()
+```
+
+Feature Selection
+
+```{r}
+library(Boruta)
+feature_select <- Boruta(stroke ~ ., data = strokedf)
+feature_select$finalDecision
+
+
+
+```
+
+Remove unwanted features
+
+```{r}
+strokedf <- strokedf %>%
+  select(-c("id"))
+```
+
+```{r}
+# coverting factor to dependent variable
+strokedf$stroke <- as.factor(strokedf$stroke)
+```
+
+```{r}
+glimpse(strokedf)
+```
+
+```{r}
+#update column names with ticks 
+names(strokedf)[names(strokedf) == "work_type.Self-employed"] <- "work_type.self_employed"
+names(strokedf)
+names(strokedf)[names(strokedf) == "smoking_status.formerly smoked"] <- "smoking_status.formerly_smoked"
+names(strokedf)[names(strokedf) == "smoking_status.never smoked"] <- "smoking_status.never_smoked"
+glimpse(strokedf)
+```
+
+# Task Two: Build prediction models
+
+Train - Test Split - Cross Validation
+
+```{r}
+library(tidymodels)
+#install.packages("baguette")
+library(baguette)
+#install.packages("discrim")
+library(discrim)
+#install.packages("bonsai")
+library(bonsai)
+model_recipe <- 
+  recipe(stroke ~ ., data = strokedf) %>%
+  step_normalize(all_numeric()) %>%
+  step_impute_knn(all_predictors())
+
+set.seed(123)
+
+stroke_split <- initial_split(strokedf, prop = 0.80)
+stroke_split
+
+stroke_train <- training(stroke_split)
+stroke_test  <- testing(stroke_split)
+
+stroke_cv <- vfold_cv(stroke_train, v = 10)
+```
+
+Ensemble Mars Models
+
+```{r}
+bag_mars_model <- 
+  bag_mars( mode = "classification",
+        num_terms = tune(),
+        prod_degree = tune(),
+        prune_method = tune(),
+        engine = "earth"
+  )
+
+set.seed(123)
+bag_mars_wf <-
+  workflow() %>%
+  add_model(bag_mars_model) %>% 
+  add_recipe(model_recipe)
+bag_mars_wf
+
+bag_mars_results <-
+  bag_mars_wf %>% 
+  tune_grid(resamples = stroke_cv,
+            metrics = metric_set(accuracy)
+  )
+bag_mars_results
+bag_mars_results %>%
+  collect_metrics()
+
+param_final <- bag_mars_results %>%
+  select_best(metric = "accuracy")
+param_final
+
+bag_mars_wf <- bag_mars_wf %>%
+  finalize_workflow(param_final)
+bag_mars_wf
+
+bag_mars_fit <- bag_mars_wf %>%
+  last_fit(stroke_split)
+
+test_performance <- bag_mars_fit %>% collect_predictions()
+test_performance
+
+stroke_metrics <- metric_set(accuracy, f_meas, precision, recall)
+stroke_metrics(data = test_performance, truth = stroke, estimate = .pred_class)
+
+conf_mat(test_performance, stroke, .pred_class)
+```
+
+![](images/clipboard-9133593.png)
+
+Bootstrap Aggregating Trees
+
+```{r}
+bag_tree_model <- 
+  bag_tree( mode = "classification",
+            cost_complexity = tune(),
+            tree_depth = tune(),
+            min_n = tune(),
+            class_cost = tune(),
+            engine = "rpart"
+  )
+
+set.seed(123)
+bag_tree_wf <-
+  workflow() %>%
+  add_model(bag_tree_model) %>% 
+  add_recipe(model_recipe)
+bag_tree_wf
+
+bag_tree_results <-
+  bag_tree_wf %>% 
+  tune_grid(resamples = stroke_cv,
+            metrics = metric_set(accuracy)
+  )
+
+bag_tree_results %>%
+  collect_metrics()
+
+param_final <- bag_tree_results %>%
+  select_best(metric = "accuracy")
+param_final
+
+bag_tree_wf <- bag_tree_wf %>%
+  finalize_workflow(param_final)
+bag_tree_wf
+
+bag_tree_fit <- bag_tree_wf %>%
+  last_fit(stroke_split)
+
+test_performance <- bag_tree_fit %>% collect_predictions()
+test_performance
+
+stroke_metrics <- metric_set(accuracy, f_meas, precision, recall)
+stroke_metrics(data = test_performance, truth = stroke, estimate = .pred_class)
+
+conf_mat(test_performance, stroke, .pred_class)
+```
+
+Extreme Gradient Boosting
+
+```{r}
+xgboost_model <- 
+  boost_tree( mode = "classification",
+            mtry = tune(),
+            trees = tune(),
+            min_n = tune(),
+            tree_depth = tune(),
+            learn_rate = tune(),
+            loss_reduction = tune(),
+            sample_size = tune(),
+            stop_iter = tune(),
+            engine = "xgboost"
+  )
+
+set.seed(123)
+xgboost_wf <-
+  workflow() %>%
+  add_model(xgboost_model) %>% 
+  add_recipe(model_recipe)
+xgboost_wf
+
+xgboost_results <-
+  xgboost_wf %>% 
+  tune_grid(resamples = stroke_cv,
+            metrics = metric_set(accuracy)
+  )
+
+xgboost_results %>%
+  collect_metrics()
+
+param_final <- xgboost_results %>%
+  select_best(metric = "accuracy")
+param_final
+
+xgboost_wf <- xgboost_wf %>%
+  finalize_workflow(param_final)
+xgboost_wf
+
+xgboost_fit <- xgboost_wf %>%
+  last_fit(stroke_split)
+
+test_performance <- xgboost_fit %>% collect_predictions()
+test_performance
+
+stroke_metrics <- metric_set(accuracy, f_meas, precision, recall)
+stroke_metrics(data = test_performance, truth = stroke, estimate = .pred_class)
+
+conf_mat(test_performance, stroke, .pred_class)
+```
+
+Classification and Regression Trees
+
+```{r}
+dt_model <- 
+  decision_tree(mode = "classification",
+                cost_complexity = tune(),
+                tree_depth = tune(),
+                min_n = tune(),
+                engine = "rpart"
+  )
+
+set.seed(123)
+dt_wf <-
+  workflow() %>%
+  add_model(dt_model) %>% 
+  add_recipe(model_recipe)
+dt_wf
+
+dt_results <-
+  dt_wf %>% 
+  tune_grid(resamples = stroke_cv,
+            metrics = metric_set(accuracy)
+  )
+
+dt_results %>%
+  collect_metrics()
+
+param_final <- dt_results %>%
+  select_best(metric = "accuracy")
+param_final
+
+dt_wf <- dt_wf %>%
+  finalize_workflow(param_final)
+dt_wf
+
+dt_fit <- dt_wf %>%
+  last_fit(stroke_split)
+
+test_performance <- dt_fit %>% collect_predictions()
+test_performance
+
+stroke_metrics <- metric_set(accuracy, f_meas, precision, recall)
+stroke_metrics(data = test_performance, truth = stroke, estimate = .pred_class)
+
+conf_mat(test_performance, stroke, .pred_class)
+```
+
+Logistic Regression
+
+```{r}
+log_model <- 
+  logistic_reg(mode = "classification",
+               penalty = tune(),
+               mixture = tune(),
+               engine = "glmnet"
+  )
+
+set.seed(123)
+log_wf <-
+  workflow() %>%
+  add_model(log_model) %>% 
+  add_recipe(model_recipe)
+log_wf
+
+log_results <-
+  log_wf %>% 
+  tune_grid(resamples = stroke_cv,
+            metrics = metric_set(accuracy)
+  )
+
+log_results %>%
+  collect_metrics()
+
+param_final <- log_results %>%
+  select_best(metric = "accuracy")
+param_final
+
+log_wf <- log_wf %>%
+  finalize_workflow(param_final)
+log_wf
+
+log_fit <- log_wf %>%
+  last_fit(stroke_split)
+
+test_performance <- log_fit %>% collect_predictions()
+test_performance
+
+stroke_metrics <- metric_set(accuracy, f_meas, precision, recall)
+stroke_metrics(data = test_performance, truth = stroke, estimate = .pred_class)
+
+conf_mat(test_performance, stroke, .pred_class)
+
+```
+
+Multivariate Adaptive Regression Splines
+
+```{r}
+mars_model <- 
+  mars(mode = "classification",
+       num_terms = tune(),
+       prod_degree = tune(),
+       prune_method = tune(),
+       engine = "earth"
+  )
+
+set.seed(123)
+mars_wf <-
+  workflow() %>%
+  add_model(mars_model) %>% 
+  add_recipe(model_recipe)
+mars_wf
+
+mars_results <-
+  mars_wf %>% 
+  tune_grid(resamples = stroke_cv,
+            metrics = metric_set(accuracy)
+  )
+
+mars_results %>%
+  collect_metrics()
+
+param_final <- mars_results %>%
+  select_best(metric = "accuracy")
+param_final
+
+mars_wf <- mars_wf %>%
+  finalize_workflow(param_final)
+mars_wf
+
+mars_fit <- mars_wf %>%
+  last_fit(stroke_split)
+
+test_performance <- mars_fit %>% collect_predictions()
+test_performance
+
+stroke_metrics <- metric_set(accuracy, f_meas, precision, recall)
+stroke_metrics(data = test_performance, truth = stroke, estimate = .pred_class)
+
+conf_mat(test_performance, stroke, .pred_class)
+```
+
+Multilayer Perceptron
+
+```{r}
+mlp_model <- 
+  mlp(mode = "classification",
+       hidden_units = tune(),
+       penalty = tune(),
+       epochs = tune(),
+       engine = "nnet"
+  )
+
+set.seed(123)
+mlp_wf <-
+  workflow() %>%
+  add_model(mlp_model) %>% 
+  add_recipe(model_recipe)
+mlp_wf
+
+mlp_results <-
+  mlp_wf %>% 
+  tune_grid(resamples = stroke_cv,
+            metrics = metric_set(accuracy)
+  )
+
+mlp_results %>%
+  collect_metrics()
+
+param_final <- mlp_results %>%
+  select_best(metric = "accuracy")
+param_final
+
+mlp_wf <- mlp_wf %>%
+  finalize_workflow(param_final)
+mlp_wf
+
+mlp_fit <- mlp_wf %>%
+  last_fit(stroke_split)
+
+test_performance <- mlp_fit %>% collect_predictions()
+test_performance
+
+stroke_metrics <- metric_set(accuracy, f_meas, precision, recall)
+stroke_metrics(data = test_performance, truth = stroke, estimate = .pred_class)
+
+conf_mat(test_performance, stroke, .pred_class)
+```
+
+Naive Bayes
+
+```{r}
+nb_model <- 
+  naive_Bayes(mode = "classification",
+              smoothness = tune(),
+              Laplace = tune(),
+              engine = "naivebayes"
+  )
+
+set.seed(123)
+nb_wf <-
+  workflow() %>%
+  add_model(nb_model) %>% 
+  add_recipe(model_recipe)
+nb_wf
+
+nb_results <-
+  nb_wf %>% 
+  tune_grid(resamples = stroke_cv,
+            metrics = metric_set(accuracy)
+  )
+
+nb_results %>%
+  collect_metrics()
+
+param_final <- nb_results %>%
+  select_best(metric = "accuracy")
+param_final
+
+nb_wf <- nb_wf %>%
+  finalize_workflow(param_final)
+nb_wf
+
+nb_fit <- nb_wf %>%
+  last_fit(stroke_split)
+
+test_performance <- nb_fit %>% collect_predictions()
+test_performance
+
+stroke_metrics <- metric_set(accuracy, f_meas, precision, recall)
+stroke_metrics(data = test_performance, truth = stroke, estimate = .pred_class)
+
+conf_mat(test_performance, stroke, .pred_class)
+
+```
+
+K - Nearest Neighbor
+
+```{r}
+knn_model <- 
+  nearest_neighbor( mode = "classification",
+                    neighbors = tune(),
+                    weight_func = tune(),
+                    dist_power = tune(),
+                    engine = "kknn"
+  )
+
+set.seed(123)
+knn_wf <-
+  workflow() %>%
+  add_model(knn_model) %>% 
+  add_recipe(model_recipe)
+knn_wf
+
+knn_results <-
+  knn_wf %>% 
+  tune_grid(resamples = stroke_cv,
+            metrics = metric_set(accuracy)
+  )
+
+knn_results %>%
+  collect_metrics()
+
+param_final <- knn_results %>%
+  select_best(metric = "accuracy")
+param_final
+
+knn_wf <- knn_wf %>%
+  finalize_workflow(param_final)
+knn_wf
+
+knn_fit <- knn_wf %>%
+  last_fit(stroke_split)
+
+test_performance <- knn_fit %>% collect_predictions()
+test_performance
+
+stroke_metrics <- metric_set(accuracy, f_meas, precision, recall)
+stroke_metrics(data = test_performance, truth = stroke, estimate = .pred_class)
+
+conf_mat(test_performance, stroke, .pred_class)
+```
+
+Random Forests
+
+```{r}
+rf_model <- 
+  rand_forest(mode = "classification",
+              mtry = tune(),
+              trees = tune(),
+              min_n = tune(),
+              engine = "ranger"
+  )
+
+set.seed(123)
+rf_wf <-
+  workflow() %>%
+  add_model(rf_model) %>% 
+  add_recipe(model_recipe)
+rf_wf
+
+rf_results <-
+  rf_wf %>% 
+  tune_grid(resamples = stroke_cv,
+            metrics = metric_set(accuracy)
+  )
+
+rf_results %>%
+  collect_metrics()
+
+param_final <- rf_results %>%
+  select_best(metric = "accuracy")
+param_final
+
+rf_wf <- rf_wf %>%
+  finalize_workflow(param_final)
+rf_wf
+
+rf_fit <- rf_wf %>%
+  last_fit(stroke_split)
+
+test_performance <- rf_fit %>% collect_predictions()
+test_performance
+
+stroke_metrics <- metric_set(accuracy, f_meas, precision, recall)
+stroke_metrics(data = test_performance, truth = stroke, estimate = .pred_class)
+
+conf_mat(test_performance, stroke, .pred_class)
+```
+
+Support Vector Machine
+
+```{r}
+svm_model <- 
+  svm_rbf(mode = "classification",
+          cost = tune(),
+          rbf_sigma = tune(),
+          engine = "kernlab"
+  )
+
+set.seed(123)
+svm_wf <-
+  workflow() %>%
+  add_model(svm_model) %>% 
+  add_recipe(model_recipe)
+svm_wf
+
+svm_results <-
+  svm_wf %>% 
+  tune_grid(resamples = stroke_cv,
+            metrics = metric_set(accuracy)
+  )
+
+svm_results %>%
+  collect_metrics()
+
+param_final <- svm_results %>%
+  select_best(metric = "accuracy")
+param_final
+
+svm_wf <- svm_wf %>%
+  finalize_workflow(param_final)
+svm_wf
+
+svm_fit <- svm_wf %>%
+  last_fit(stroke_split)
+
+test_performance <- svm_fit %>% collect_predictions()
+test_performance
+
+stroke_metrics <- metric_set(accuracy, f_meas, precision, recall)
+stroke_metrics(data = test_performance, truth = stroke, estimate = .pred_class)
+
+conf_mat(test_performance, stroke, .pred_class)
+```
+
+Light Gradient Boosted Machine
+
+```{r}
+lgbm_model <- 
+  boost_tree( mode = "classification",
+              mtry = tune(),
+              trees = tune(),
+              min_n = tune(),
+              tree_depth = tune(),
+              learn_rate = tune(),
+              loss_reduction = tune(),
+              engine = "lightgbm"
+  )
+
+set.seed(123)
+lgbm_wf <-
+  workflow() %>%
+  add_model(lgbm_model) %>% 
+  add_recipe(model_recipe)
+lgbm_wf
+
+lgbm_results <-
+  lgbm_wf %>% 
+  tune_grid(resamples = stroke_cv,
+            metrics = metric_set(accuracy)
+  )
+
+lgbm_results %>%
+  collect_metrics()
+
+param_final <- lgbm_results %>%
+  select_best(metric = "accuracy")
+param_final
+
+lgbm_wf <- lgbm_wf %>%
+  finalize_workflow(param_final)
+lgbm_wf
+
+lgbm_fit <- lgbm_wf %>%
+  last_fit(stroke_split)
+
+test_performance <- lgbm_fit %>% collect_predictions()
+test_performance
+
+stroke_metrics <- metric_set(accuracy, f_meas, precision, recall)
+stroke_metrics(data = test_performance, truth = stroke, estimate = .pred_class)
+
+conf_mat(test_performance, stroke, .pred_class)
+```
+
+Flexible Discriminant Analysis
+
+```{r}
+flexible_model <- 
+  discrim_flexible( mode = "classification",
+                    num_terms = tune(),
+                    prod_degree = tune(),
+                    prune_method = tune(),
+                    engine = "earth"
+  )
+
+set.seed(123)
+flexible_wf <-
+  workflow() %>%
+  add_model(flexible_model) %>% 
+  add_recipe(model_recipe)
+flexible_wf
+
+flexible_results <-
+  flexible_wf %>% 
+  tune_grid(resamples = stroke_cv,
+            metrics = metric_set(accuracy)
+  )
+
+flexible_results %>%
+  collect_metrics()
+
+param_final <- flexible_results %>%
+  select_best(metric = "accuracy")
+param_final
+
+flexible_wf <- flexible_wf %>%
+  finalize_workflow(param_final)
+flexible_wf
+
+flexible_fit <- flexible_wf %>%
+  last_fit(stroke_split)
+
+test_performance <- flexible_fit %>% collect_predictions()
+test_performance
+
+stroke_metrics <- metric_set(accuracy, f_meas, precision, recall)
+stroke_metrics(data = test_performance, truth = stroke, estimate = .pred_class)
+
+conf_mat(test_performance, stroke, .pred_class)
+```
+
+Regularized Discriminant Analysis
+
+```{r}
+regularized_model <- 
+  discrim_regularized( mode = "classification",
+                frac_common_cov = tune(),
+                frac_identity = tune(),
+                engine = "klaR"
+  )
+
+set.seed(123)
+regularized_wf <-
+  workflow() %>%
+  add_model(regularized_model) %>% 
+  add_recipe(model_recipe)
+regularized_wf
+
+regularized_results <-
+  regularized_wf %>% 
+  tune_grid(resamples = stroke_cv,
+            metrics = metric_set(accuracy),
+            control = control_resamples(save_pred = TRUE)
+  )
+
+regularized_results %>%
+  collect_metrics()
+
+param_final <- regularized_results %>%
+  select_best(metric = "accuracy")
+param_final
+
+regularized_wf <- regularized_wf %>%
+  finalize_workflow(param_final)
+regularized_wf
+
+regularized_fit <- regularized_wf %>%
+  last_fit(stroke_split)
+
+test_performance <- regularized_fit %>% collect_predictions()
+test_performance
+
+stroke_metrics <- metric_set(accuracy, f_meas, precision, recall)
+stroke_metrics(data = test_performance, truth = stroke, estimate = .pred_class)
+
+conf_mat(test_performance, stroke, .pred_class)
+
+```
+
+# Task Three: Evaluate and select prediction models
+
+```{r}
+# knn model has the highest scores for selection
+final_model <- fit(knn_wf, strokedf)
+ranger_obj <- pull_workflow_fit(final_model)$fit
+ranger_obj
+
+```
+
+# Task Four: Deploy the prediction model
+
+```{r}
+#install.packages("vetiver")
+library(vetiver)
+#install.packages("pins")
+library(pins)
+#install.packages("plumber")
+library(plumber)
+# 3. Create Vetiver Model object
+# Ensure model is fitted
+knn_fit2 <- final_model %>% fit(stroke_train)  # Fit the workflow
+
+# Now create the Vetiver model
+v_knn <- vetiver_model(knn_fit2, model_name = "stroke_prediction_knn")
+model_board <- board_folder("pins-r", versioned = TRUE)
+model_board %>% vetiver_pin_write(v_knn)
+pr() %>%
+  vetiver_api(v_knn)%>% 
+  pr_run(port=8080)
+
+```
+
+# Task Five: Findings and Conclusions
+
+Findings:
+
+1.  **Accuracy:** The K-Nearest Neighbors (KNN) algorithm consistently achieved the highest accuracy among the tested classification algorithms. It demonstrated a remarkable ability to correctly classify instances, leading to a more reliable overall performance.
+
+2.  **Precision:** KNN excelled in precision, indicating a low rate of false positives. This is particularly crucial in scenarios where minimizing Type I errors is a priority, ensuring that predicted positive instances are more likely to be true positives.
+
+3.  **Recall:** The recall scores for KNN were consistently high, showcasing its capability to identify a significant proportion of actual positive instances. This is beneficial in situations where the goal is to capture as many relevant instances as possible.
+
+4.  **F-Score:** The F-Score, which balances precision and recall, also favored KNN. This implies that the algorithm maintains a good trade-off between minimizing false positives and capturing a high number of true positives.
+
+Conclusions:
+
+After a comprehensive evaluation of various classification algorithms, it is evident that the K-Nearest Neighbors algorithm stands out as the optimal choice for our specific task. Its superior performance across accuracy, precision, recall, and F-Score metrics suggests that KNN is well-suited to provide accurate and well-balanced predictions for our dataset.
+
+The strengths of KNN lie in its simplicity, non-parametric nature, and ability to adapt to the underlying patterns in the data. However, it is essential to acknowledge that the performance of KNN may be sensitive to the choice of parameters, such as the distance metric and the number of neighbors (K value). Continued monitoring and optimization of these parameters are recommended to ensure the sustained effectiveness of the model as the dataset evolves.
+
+In conclusion, the findings support the selection of the K-Nearest Neighbors algorithm for our classification task, but ongoing refinement and fine-tuning of the model should be pursued to maintain optimal performance over time.

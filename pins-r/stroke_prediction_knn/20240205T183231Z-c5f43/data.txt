@@ -1,0 +1,17 @@
+file: stroke_prediction_knn.rds
+file_size: 122687
+pin_hash: c5f4386a6aa6572a
+type: rds
+title: 'stroke_prediction_knn: a pinned list'
+description: A kknn classification modeling workflow
+tags: ~
+urls: ~
+created: 20240205T183231Z
+api_version: 1
+user:
+  required_pkgs:
+  - kknn
+  - parsnip
+  - recipes
+  - workflows
+  renv_lock: ~
